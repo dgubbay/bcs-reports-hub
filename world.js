@@ -324,6 +324,49 @@ function addMesh(parent, geom, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz
   return m;
 }
 
+const SIGN_SCALE = 0.8;
+const facingSigns = [];
+const _signPos = new THREE.Vector3();
+const LEAF_TONES = [0x2f6f37, 0x3c8a45, 0x4f9440, 0x6c9f3c].map((c) => new THREE.Color(c));
+let campusEnv = null;
+
+function glassMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x5288b3, roughness: 0.07, metalness: 0.25,
+    clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.4,
+  });
+}
+
+function buildSkyEnvironment() {
+  const envScene = new THREE.Scene();
+  const sky = scene.getObjectByName('sky');
+  envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 24, 16),
+    sky ? sky.material : new THREE.MeshBasicMaterial({ color: 0xc5e4f7, side: THREE.BackSide })));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(49, 32), new THREE.MeshBasicMaterial({ color: 0x5f8a4f }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -2;
+  envScene.add(ground);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const tex = pmrem.fromScene(envScene, 0.02).texture;
+  pmrem.dispose();
+  return tex;
+}
+
+function roadDashes(radius) {
+  const n = 64;
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.02, 1.6), mat(0xe9e4d6, { roughness: 0.7 }), n);
+  const d = new THREE.Object3D();
+  for (let i = 0; i < n; i++) {
+    const a = ((i + 0.25) / n) * Math.PI * 2;
+    d.position.set(Math.cos(a) * radius, 0.17, Math.sin(a) * radius);
+    d.rotation.set(0, -a, 0);
+    d.updateMatrix();
+    m.setMatrixAt(i, d.matrix);
+  }
+  m.receiveShadow = true;
+  return m;
+}
+
 function signLabel(def) {
   const labels = {
     castle: 'COMMAND\nCENTER',
@@ -407,9 +450,10 @@ function signFaceMaterial(tex) {
   });
 }
 
-function rooftopSign(parent, text, color, y, w = 14) {
+function rooftopSign(parent, text, color, y, w = 14, crossed = false) {
+  w *= SIGN_SCALE;
   const tex = makeSignTexture(text, color, '#ffffff');
-  const h = Math.max(2.55, w * 0.22);
+  const h = Math.max(2.55 * SIGN_SCALE, w * 0.22);
   const group = new THREE.Group();
   group.name = `Sign: ${String(text).replace(/\n/g, ' ')}`;
   group.userData.isSign = true;
@@ -433,9 +477,10 @@ function rooftopSign(parent, text, color, y, w = 14) {
     group.add(board);
   };
   addBoard(0);
-  addBoard(Math.PI / 2);
+  if (crossed) addBoard(Math.PI / 2);
+  else facingSigns.push(group);
 
-  const postH = 2.8;
+  const postH = 2.8 * SIGN_SCALE;
   const postMat = mat(0x1c222a, { roughness: 0.4, metalness: 0.3 });
   const postSpan = Math.min(w * 0.36, 5.4);
   addMesh(group, new THREE.BoxGeometry(0.2, postH, 0.2), postMat, -postSpan, -h / 2 - postH / 2, 0);
@@ -488,7 +533,7 @@ function officeBuilding(group, def, opts) {
   const h = stories * storyH;
   const bodyMat = mat(body, { roughness: 0.5 });
   const frameMat = mat(frame, { roughness: 0.38, metalness: 0.2 });
-  const glassMat = mat(0x7eafd2, { roughness: 0.12, metalness: 0.35, opacity: 0.62 });
+  const glassMat = glassMaterial();
   const accentMat = mat(accent, { roughness: 0.4, metalness: 0.18 });
   addMesh(group, new THREE.BoxGeometry(w + 1.2, 0.28, d + 1.2), mat(0xd5d2cb, { roughness: 0.85 }), 0, 0.14, 0);
   addMesh(group, new THREE.BoxGeometry(w, h, d), bodyMat, 0, h / 2 + 0.28, 0);
@@ -505,7 +550,7 @@ function officeBuilding(group, def, opts) {
 }
 
 function buildCommand(group, def) {
-  const glass = mat(0x6ea4cc, { roughness: 0.1, metalness: 0.4, opacity: 0.7 });
+  const glass = glassMaterial();
   const frame = mat(0x1b2230, { roughness: 0.35, metalness: 0.25 });
   const white = mat(0xf4f6f9, { roughness: 0.5 });
   const accent = mat(0x4c7cff, { roughness: 0.32, metalness: 0.2, emissive: 0x1a3a8a, emissiveIntensity: 0.15 });
@@ -520,7 +565,7 @@ function buildCommand(group, def) {
   addMesh(group, new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8), frame, 0, 21.3, 0);
   addMesh(group, new THREE.SphereGeometry(0.22, 10, 10), mat(0x4c7cff, { emissive: 0x4c7cff, emissiveIntensity: 0.8 }), 0, 22.9, 0);
   entrance(group, 9.4, 4.7, 0x4c7cff);
-  rooftopSign(group, 'COMMAND\nCENTER', '#4c7cff', 13.7, 16.5);
+  rooftopSign(group, 'COMMAND\nCENTER', '#4c7cff', 13.7, 16.5, true);
   facadeSign(group, 'COMMAND\nCENTER', '#4c7cff', 3.45, 4.92, 8.8);
   // plaza flag
   const pole = addMesh(group, new THREE.CylinderGeometry(0.06, 0.06, 5.5, 8), mat(0x9aa0a8, { metalness: 0.4 }), 5.6, 3.0, 5.6);
@@ -557,7 +602,7 @@ function buildImplementations(group, def) {
   officeBuilding(group, def, { w: 10.0, d: 7.6, stories: 3, accent: 0xc26b3a, body: 0xeee8e1 });
   addMesh(group, new THREE.BoxGeometry(5.2, 3.2, 6.0), mat(0xc26b3a, { roughness: 0.55 }), -6.4, 1.9, 0.4);
   // sawtooth clerestory
-  for (const x of [-7.6, -6.4, -5.2]) addMesh(group, new THREE.BoxGeometry(1.0, 1.1, 6.0), mat(0x7eafd2, { roughness: 0.15, metalness: 0.3, opacity: 0.55 }), x, 3.9, 0.4);
+  for (const x of [-7.6, -6.4, -5.2]) addMesh(group, new THREE.BoxGeometry(1.0, 1.1, 6.0), glassMaterial(), x, 3.9, 0.4);
 }
 
 function buildSupport(group, def) {
@@ -635,8 +680,9 @@ function addPark(parent) {
   addMesh(parent, new THREE.CylinderGeometry(16.5, 16.5, 0.16, 40), mat(0x4e8a4a, { roughness: 0.92 }), 0, 0.14, 0).receiveShadow = true;
   addMesh(parent, new THREE.CylinderGeometry(13.5, 13.5, 0.05, 40), mat(0x57944f, { roughness: 0.92 }), 0, 0.23, 0).receiveShadow = true;
   // pond
-  const pond = addMesh(parent, new THREE.CylinderGeometry(3.6, 3.8, 0.12, 24), mat(0x3a8aaa, { roughness: 0.18, metalness: 0.2 }), 0, 0.28, 5.2);
+  const pond = addMesh(parent, new THREE.CylinderGeometry(3.6, 3.8, 0.12, 24), new THREE.MeshPhysicalMaterial({ color: 0x24647e, roughness: 0.05, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 }), 0, 0.28, 5.2);
   waterPond = pond;
+  addMesh(parent, new THREE.CylinderGeometry(3.85, 4.0, 0.12, 40), mat(0xcfc8bc, { roughness: 0.6 }), 0, 0.25, 5.2);
   // fountain
   addMesh(parent, new THREE.CylinderGeometry(1.1, 1.3, 0.4, 16), mat(0xcfc8bc, { roughness: 0.5 }), 0, 0.5, 5.2);
   addMesh(parent, new THREE.CylinderGeometry(0.22, 0.28, 1.4, 10), mat(0xcfc8bc), 0, 1.2, 5.2);
@@ -670,7 +716,7 @@ function scatterTrees(parent, count) {
   const trunkGeom = new THREE.CylinderGeometry(0.16, 0.22, 1.6, 7);
   const leafGeom = new THREE.SphereGeometry(1.15, 8, 6);
   const trunkMat = mat(0x5b3b24, { roughness: 0.9 });
-  const leafMat = mat(0x3c8a45, { roughness: 0.75 });
+  const leafMat = mat(0xffffff, { roughness: 0.8, flat: true });
   const trunks = new THREE.InstancedMesh(trunkGeom, trunkMat, count);
   const leaves = new THREE.InstancedMesh(leafGeom, leafMat, count);
   trunks.castShadow = leaves.castShadow = !isMobile;
@@ -695,9 +741,11 @@ function scatterTrees(parent, count) {
     dummy.position.y = 0.9 + 1.5 * s;
     dummy.updateMatrix();
     leaves.setMatrixAt(placed, dummy.matrix);
+    leaves.setColorAt(placed, LEAF_TONES[Math.floor(Math.random() * LEAF_TONES.length)]);
     placed++;
   }
   trunks.count = leaves.count = placed;
+  if (leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
   parent.add(trunks, leaves);
 }
 
@@ -1136,6 +1184,7 @@ async function enterLand(id, opts = {}) {
     if (sky) sky.visible = false;
     scene.fog = null;
     if (sun) sun.intensity = 0.35;
+    scene.environment = null;
     renderer.setClearColor(0x1a1f28, 1);
     inRoom = true;
     roomLookYaw = 0;
@@ -1166,7 +1215,8 @@ async function leaveLand() {
   enteredId = null;
   if (campusRoot) campusRoot.visible = true;
   if (clouds) clouds.visible = true;
-  if (sun) sun.intensity = 1.25;
+  if (sun) sun.intensity = 2.1;
+  scene.environment = campusEnv;
   closeRoomHud();
   setOverviewImmediate();
   if (!instant) {
@@ -1328,7 +1378,7 @@ function setHovered(id) {
 function setGroupEmissive(group, color, intensity) {
   if (!group) return;
   group.traverse((o) => {
-    if (o.isMesh && o.material && 'emissive' in o.material && !(o.material instanceof THREE.MeshBasicMaterial) && !(o.material instanceof THREE.ShaderMaterial) && !o.material.transparent) {
+    if (o.isMesh && o.material && 'emissive' in o.material && !(o.material instanceof THREE.MeshBasicMaterial) && !(o.material instanceof THREE.ShaderMaterial) && !o.material.transparent && !o.material.emissiveMap) {
       o.material.emissive.setHex(color);
       o.material.emissiveIntensity = intensity;
     }
@@ -1426,21 +1476,27 @@ function initWorld() {
   renderer.setClearColor(0xc5e4f7, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = !isMobile;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
+  scene.onBeforeRender = (_r, _s, cam) => {
+    for (const g of facingSigns) {
+      g.getWorldPosition(_signPos);
+      g.rotation.y = Math.atan2(cam.position.x - _signPos.x, cam.position.z - _signPos.z);
+    }
+  };
   scene.fog = new THREE.Fog(0xd5e8f4, 70, 170);
   camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 320);
   clock = new THREE.Clock();
   setOverviewImmediate();
   makeSky(scene);
 
-  hemi = new THREE.HemisphereLight(0xd8ecff, 0x8aa07a, 0.72);
+  hemi = new THREE.HemisphereLight(0xd8ecff, 0x8aa07a, 0.38);
   scene.add(hemi);
-  sun = new THREE.DirectionalLight(0xfff4e0, 1.25);
-  sun.position.set(48, 62, 26);
+  sun = new THREE.DirectionalLight(0xfff1dc, 2.1);
+  sun.position.set(66, 46, -24);
   if (!isMobile) {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -1451,7 +1507,10 @@ function initWorld() {
     sun.shadow.bias = -0.0004;
   }
   scene.add(sun);
-  scene.add(new THREE.AmbientLight(0xb7c4d4, 0.28));
+  scene.add(new THREE.AmbientLight(0xb7c4d4, 0.1));
+  campusEnv = buildSkyEnvironment();
+  scene.environment = campusEnv;
+  scene.environmentIntensity = 0.55;
 
   campusRoot = new THREE.Group();
   campusRoot.name = 'BCS Campus';
@@ -1459,6 +1518,7 @@ function initWorld() {
   addMesh(campusRoot, new THREE.BoxGeometry(200, 0.2, 200), mat(0x6fa35f, { roughness: 0.95 }), 0, -0.08, 0).receiveShadow = true;
   addMesh(campusRoot, new THREE.CylinderGeometry(52, 52, 0.18, 48), mat(0x5f9a55, { roughness: 0.93 }), 0, 0.04, 0).receiveShadow = true;
   campusRoot.add(roadRing(34, 5.4));
+  campusRoot.add(roadDashes(34));
   addPark(campusRoot);
   for (const def of LAND_DEFS) {
     if (def.id === 'castle') continue;
