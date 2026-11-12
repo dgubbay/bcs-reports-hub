@@ -324,30 +324,138 @@ function addMesh(parent, geom, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz
   return m;
 }
 
+function signLabel(def) {
+  const labels = {
+    castle: 'COMMAND\nCENTER',
+    finance: 'FINANCE HQ',
+    sales: 'SALES\nCENTER',
+    marketing: 'MARKETING\nSTUDIO',
+    emails: 'COMMS\nBUILDING',
+    implementations: 'IMPLEMENTATIONS\nLAB',
+    support: 'SUPPORT\nCENTER',
+  };
+  return labels[def.id] || String(def.name || def.sign || '').toUpperCase();
+}
+
 function makeSignTexture(text, bg, fg = '#ffffff') {
+  let lines = String(text).replace(/\\n/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
+  if (lines.length === 1 && lines[0].length > 14 && lines[0].includes(' ')) {
+    const parts = lines[0].split(/\s+/);
+    const mid = Math.ceil(parts.length / 2);
+    lines = [parts.slice(0, mid).join(' '), parts.slice(mid).join(' ')];
+  }
+  if (!lines.length) lines = [''];
+
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 128;
+  const W = 2048, H = 512;
+  c.width = W;
+  c.height = H;
   const g = c.getContext('2d');
+
+  g.fillStyle = '#07090c';
+  g.fillRect(0, 0, W, H);
   g.fillStyle = bg;
-  g.fillRect(0, 0, 512, 128);
-  g.fillStyle = fg;
-  g.font = '700 56px Outfit, "Segoe UI", sans-serif';
+  g.fillRect(0, 0, W, 32);
+  g.fillRect(0, H - 32, W, 32);
+  g.strokeStyle = bg;
+  g.lineWidth = 18;
+  g.strokeRect(22, 22, W - 44, H - 44);
+  g.strokeStyle = 'rgba(255,255,255,0.88)';
+  g.lineWidth = 5;
+  g.strokeRect(40, 40, W - 80, H - 80);
+
+  const maxW = W - 160;
+  const lineCount = lines.length;
+  let size = lineCount === 1 ? 240 : 168;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(text, 256, 68);
+  const fontFor = (px) => `800 ${px}px Outfit, "Segoe UI", Arial, sans-serif`;
+  g.font = fontFor(size);
+  while (size > 72 && lines.some((ln) => g.measureText(ln).width > maxW)) {
+    size -= 4;
+    g.font = fontFor(size);
+  }
+  const gap = size * 0.16;
+  const block = lineCount * size + (lineCount - 1) * gap;
+  let y = (H - block) / 2 + size / 2;
+  for (const ln of lines) {
+    g.lineJoin = 'round';
+    g.miterLimit = 2;
+    g.lineWidth = Math.max(12, size * 0.07);
+    g.strokeStyle = 'rgba(0,0,0,0.9)';
+    g.strokeText(ln, W / 2, y);
+    g.fillStyle = fg;
+    g.fillText(ln, W / 2, y);
+    y += size + gap;
+  }
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
   return tex;
 }
 
-function rooftopSign(parent, text, color, y, w = 6.4) {
+function signFaceMaterial(tex) {
+  return new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.32,
+    metalness: 0.06,
+    emissive: 0xffffff,
+    emissiveMap: tex,
+    emissiveIntensity: 0.75,
+  });
+}
+
+function rooftopSign(parent, text, color, y, w = 14) {
   const tex = makeSignTexture(text, color, '#ffffff');
-  const board = addMesh(parent, new THREE.BoxGeometry(w, 0.85, 0.12), mat(0x111418, { roughness: 0.35, metalness: 0.2 }), 0, y, 0);
-  const face = addMesh(parent, new THREE.PlaneGeometry(w - 0.2, 0.68), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.05 }), 0, y, 0.08);
+  const h = Math.max(2.55, w * 0.22);
+  const group = new THREE.Group();
+  group.name = `Sign: ${String(text).replace(/\n/g, ' ')}`;
+  group.userData.isSign = true;
+  group.userData.signText = String(text).replace(/\n/g, ' ');
+  group.position.y = y;
+  parent.add(group);
+
+  const frameMat = mat(0x111418, { roughness: 0.3, metalness: 0.38 });
+  const faceMat = signFaceMaterial(tex);
+  const lightMat = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 0.9, roughness: 0.2 });
+
+  const addBoard = (ry) => {
+    const board = new THREE.Group();
+    board.rotation.y = ry;
+    addMesh(board, new THREE.BoxGeometry(w + 0.36, h + 0.36, 0.26), frameMat, 0, 0, 0);
+    const face = addMesh(board, new THREE.PlaneGeometry(w, h), faceMat, 0, 0, 0.15);
+    face.castShadow = false;
+    const face2 = addMesh(board, new THREE.PlaneGeometry(w, h), faceMat, 0, 0, -0.15, 0, Math.PI, 0);
+    face2.castShadow = false;
+    addMesh(board, new THREE.BoxGeometry(w + 0.4, 0.12, 0.38), lightMat, 0, h / 2 + 0.2, 0).castShadow = false;
+    group.add(board);
+  };
+  addBoard(0);
+  addBoard(Math.PI / 2);
+
+  const postH = 2.8;
+  const postMat = mat(0x1c222a, { roughness: 0.4, metalness: 0.3 });
+  const postSpan = Math.min(w * 0.36, 5.4);
+  addMesh(group, new THREE.BoxGeometry(0.2, postH, 0.2), postMat, -postSpan, -h / 2 - postH / 2, 0);
+  addMesh(group, new THREE.BoxGeometry(0.2, postH, 0.2), postMat, postSpan, -h / 2 - postH / 2, 0);
+  return group;
+}
+
+function facadeSign(parent, text, color, y, z, w = 7.2) {
+  const tex = makeSignTexture(text, color, '#ffffff');
+  const h = Math.max(1.45, w * 0.24);
+  const group = new THREE.Group();
+  group.name = `Facade sign: ${String(text).replace(/\n/g, ' ')}`;
+  group.userData.isSign = true;
+  group.userData.signText = String(text).replace(/\n/g, ' ');
+  group.position.set(0, y, z);
+  parent.add(group);
+  addMesh(group, new THREE.BoxGeometry(w + 0.24, h + 0.24, 0.18), mat(0x111418, { roughness: 0.3, metalness: 0.35 }), 0, 0, 0);
+  const face = addMesh(group, new THREE.PlaneGeometry(w, h), signFaceMaterial(tex), 0, 0, 0.11);
   face.castShadow = false;
-  const face2 = addMesh(parent, new THREE.PlaneGeometry(w - 0.2, 0.68), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.05 }), 0, y, -0.08, 0, Math.PI, 0);
-  face2.castShadow = false;
-  return board;
+  return group;
 }
 
 function windowBands(group, w, h, d, y0, stories, frameMat, glassMat) {
@@ -389,8 +497,11 @@ function officeBuilding(group, def, opts) {
   addMesh(group, new THREE.BoxGeometry(0.22, h + 0.2, 0.22), accentMat, -w / 2, h / 2 + 0.28, d / 2);
   addMesh(group, new THREE.BoxGeometry(0.22, h + 0.2, 0.22), accentMat, w / 2, h / 2 + 0.28, d / 2);
   entrance(group, w, d / 2, accent);
-  hvac(group, h + 0.85, -d * 0.15);
-  rooftopSign(group, def.sign, '#' + new THREE.Color(accent).getHexString(), h + 1.55, Math.min(w * 0.9, 7.2));
+  hvac(group, h + 0.85, -d * 0.28);
+  const colorCss = '#' + new THREE.Color(accent).getHexString();
+  const label = signLabel(def);
+  rooftopSign(group, label, colorCss, h + 6.4, Math.max(w * 1.6, 14));
+  facadeSign(group, label, colorCss, 3.35, d / 2 + 0.22, Math.min(w * 0.95, 9.2));
 }
 
 function buildCommand(group, def) {
@@ -409,7 +520,8 @@ function buildCommand(group, def) {
   addMesh(group, new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8), frame, 0, 21.3, 0);
   addMesh(group, new THREE.SphereGeometry(0.22, 10, 10), mat(0x4c7cff, { emissive: 0x4c7cff, emissiveIntensity: 0.8 }), 0, 22.9, 0);
   entrance(group, 9.4, 4.7, 0x4c7cff);
-  rooftopSign(group, 'BCS', '#4c7cff', 20.3, 4.4);
+  rooftopSign(group, 'COMMAND\nCENTER', '#4c7cff', 13.7, 16.5);
+  facadeSign(group, 'COMMAND\nCENTER', '#4c7cff', 3.45, 4.92, 8.8);
   // plaza flag
   const pole = addMesh(group, new THREE.CylinderGeometry(0.06, 0.06, 5.5, 8), mat(0x9aa0a8, { metalness: 0.4 }), 5.6, 3.0, 5.6);
   const flag = addMesh(group, new THREE.PlaneGeometry(1.6, 0.9), mat(0x4c7cff, { side: THREE.DoubleSide }), 6.4, 5.3, 5.6);
@@ -461,6 +573,7 @@ const builders = {
 
 function buildLand(def) {
   const group = new THREE.Group();
+  group.name = def.name;
   group.position.set(def.x, 0, def.z);
   group.userData.landId = def.id;
   addMesh(group, new THREE.BoxGeometry(def.radius * 2.3, 0.12, def.radius * 2.3), mat(0xdfe3e8, { roughness: 0.9 }), 0, 0.08, 0).receiveShadow = true;
@@ -790,6 +903,7 @@ function buildRoom(id) {
   const def = landById[id];
   const reports = reportsByLand.get(id) || [];
   const root = new THREE.Group();
+  root.name = theme.title + ' interior';
   root.position.copy(ROOM_ORIGIN);
   const W = 18, D = 16, H = 6.6;
   const wallMat = mat(theme.walls, { roughness: 0.7, side: THREE.DoubleSide });
@@ -1340,6 +1454,7 @@ function initWorld() {
   scene.add(new THREE.AmbientLight(0xb7c4d4, 0.28));
 
   campusRoot = new THREE.Group();
+  campusRoot.name = 'BCS Campus';
   scene.add(campusRoot);
   addMesh(campusRoot, new THREE.BoxGeometry(200, 0.2, 200), mat(0x6fa35f, { roughness: 0.95 }), 0, -0.08, 0).receiveShadow = true;
   addMesh(campusRoot, new THREE.CylinderGeometry(52, 52, 0.18, 48), mat(0x5f9a55, { roughness: 0.93 }), 0, 0.04, 0).receiveShadow = true;
@@ -1478,6 +1593,15 @@ function hideLoader() {
 
 async function afterStart() {
   window.__hubReady = true;
+  window.__hub = {
+    THREE,
+    scene,
+    get campusRoot() { return campusRoot; },
+    get roomRoot() { return roomRoot; },
+    enterLand,
+    buildRoom,
+    LAND_DEFS,
+  };
   if (shotMode === 'room') {
     hideLoader();
     await enterLand(shotLand, { instant: true });
