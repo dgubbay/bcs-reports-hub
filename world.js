@@ -698,7 +698,7 @@ function fadeTo(on) {
 }
 
 // ---------- interiors ----------
-const TILES_PER_WALL = 6;
+const TILES_PER_WALL = 4;
 
 function drawTile(report, accentHex) {
   const c = document.createElement('canvas');
@@ -791,7 +791,7 @@ function buildRoom(id) {
   const reports = reportsByLand.get(id) || [];
   const root = new THREE.Group();
   root.position.copy(ROOM_ORIGIN);
-  const W = 18, D = 16, H = 6.2;
+  const W = 18, D = 16, H = 6.6;
   const wallMat = mat(theme.walls, { roughness: 0.7, side: THREE.DoubleSide });
   const floorMat = mat(theme.floor, { roughness: 0.55, side: THREE.DoubleSide });
   const ceilMat = mat(theme.ceil, { roughness: 0.8, side: THREE.DoubleSide });
@@ -806,10 +806,12 @@ function buildRoom(id) {
   addMesh(root, new THREE.BoxGeometry(W, 0.16, 0.28), mat(theme.trim), 0, 0.2, -D / 2);
   addMesh(root, new THREE.BoxGeometry(0.28, 0.16, D), mat(theme.trim), -W / 2, 0.2, 0);
   addMesh(root, new THREE.BoxGeometry(0.28, 0.16, D), mat(theme.trim), W / 2, 0.2, 0);
-  // ceiling lights
-  for (const x of [-4.5, 0, 4.5]) {
-    const light = addMesh(root, new THREE.BoxGeometry(2.4, 0.08, 0.7), mat(0xffffff, { emissive: 0xfff7e8, emissiveIntensity: 0.9, roughness: 0.3 }), x, H - 0.12, 0);
-    light.castShadow = false;
+  // ceiling light grid
+  for (const x of [-5.2, 0, 5.2]) {
+    for (const z of [-3.4, 0.4, 4.2]) {
+      const fixture = addMesh(root, new THREE.BoxGeometry(2.2, 0.08, 0.7), mat(0xffffff, { emissive: 0xfff7e8, emissiveIntensity: 1.1, roughness: 0.3 }), x, H - 0.12, z);
+      fixture.castShadow = false;
+    }
   }
   const lamp = new THREE.PointLight(theme.light, 70, 36, 1.6);
   lamp.position.set(0, H - 0.6, 0);
@@ -818,7 +820,7 @@ function buildRoom(id) {
   const fill = new THREE.PointLight(0xffffff, 32, 30, 1.6);
   fill.position.set(0, 3.2, 3);
   root.add(fill);
-  root.add(new THREE.HemisphereLight(0xffffff, theme.floor, 0.35));
+  root.add(new THREE.HemisphereLight(0xffffff, theme.floor, 0.45));
 
   // door on front wall
   const door = addMesh(root, new THREE.BoxGeometry(2.2, 3.2, 0.16), mat(theme.wood, { roughness: 0.5 }), 0, 1.7, D / 2 - 0.2);
@@ -829,21 +831,7 @@ function buildRoom(id) {
   door.userData.isDoor = true;
   roomDoor = door;
 
-  // center furniture
-  addMesh(root, new THREE.BoxGeometry(5.4, 0.12, 2.4), mat(theme.wood, { roughness: 0.45 }), 0, 1.05, 0.6);
-  addMesh(root, new THREE.BoxGeometry(0.14, 1.0, 0.14), mat(theme.wood), -2.4, 0.5, 0);
-  addMesh(root, new THREE.BoxGeometry(0.14, 1.0, 0.14), mat(theme.wood), 2.4, 0.5, 0);
-  addMesh(root, new THREE.BoxGeometry(0.14, 1.0, 0.14), mat(theme.wood), -2.4, 0.5, 1.3);
-  addMesh(root, new THREE.BoxGeometry(0.14, 1.0, 0.14), mat(theme.wood), 2.4, 0.5, 1.3);
-  if (id === 'castle') {
-    addMesh(root, new THREE.CylinderGeometry(0.9, 1.0, 0.2, 16), mat(theme.accent), 0, 1.18, 0.6);
-  }
-  if (id === 'finance') {
-    addMesh(root, new THREE.TorusGeometry(0.55, 0.08, 8, 16), mat(theme.accent, { metalness: 0.6, roughness: 0.3 }), -5.5, 1.4, 0, Math.PI / 2, 0, 0);
-  }
-  if (id === 'implementations') {
-    addMesh(root, new THREE.BoxGeometry(1.4, 0.7, 1.0), mat(0x6a6e74, { metalness: 0.4 }), 5.5, 0.5, 2.2);
-  }
+  furnishRoom(root, theme, W, D);
 
   const walls = [
     { name: 'North wall', yaw: 0, axis: 'back' },
@@ -871,23 +859,79 @@ function buildRoom(id) {
   updateWallHud();
 }
 
+
+function plant(parent, x, z, scale = 1, leaf = 0x2f7a3e) {
+  const g = new THREE.Group();
+  addMesh(g, new THREE.CylinderGeometry(0.22 * scale, 0.28 * scale, 0.42 * scale, 10), mat(0x8a5a3a, { roughness: 0.7 }), 0, 0.21 * scale, 0);
+  addMesh(g, new THREE.SphereGeometry(0.48 * scale, 10, 8), mat(leaf, { roughness: 0.75 }), 0, 0.72 * scale, 0);
+  addMesh(g, new THREE.SphereGeometry(0.32 * scale, 8, 8), mat(leaf, { roughness: 0.7 }), 0.22 * scale, 0.7 * scale, 0.1);
+  g.position.set(x, 0, z);
+  parent.add(g);
+  return g;
+}
+
+function furnishRoom(root, theme, W, D) {
+  const wood = mat(theme.wood, { roughness: 0.5 });
+  const cushion = mat(theme.accent, { roughness: 0.7 });
+  const fabric = mat(0xd9d2c5, { roughness: 0.8 });
+  // rug
+  addMesh(root, new THREE.BoxGeometry(7.2, 0.04, 4.4), mat(theme.accent, { roughness: 0.9 }), 0, 0.13, 1.4).receiveShadow = true;
+  // reception desk near the door, stage left
+  addMesh(root, new THREE.BoxGeometry(2.8, 1.15, 1.15), wood, -5.2, 0.7, D / 2 - 2.4);
+  addMesh(root, new THREE.BoxGeometry(2.8, 0.08, 1.25), mat(theme.trim, { roughness: 0.4 }), -5.2, 1.3, D / 2 - 2.4);
+  addMesh(root, new THREE.BoxGeometry(0.7, 1.0, 0.7), wood, -4.3, 0.62, D / 2 - 3.3);
+  // lounge sofa + table, stage right
+  addMesh(root, new THREE.BoxGeometry(3.2, 0.45, 1.15), fabric, 5.0, 0.45, 2.3);
+  addMesh(root, new THREE.BoxGeometry(3.2, 0.7, 0.28), fabric, 5.0, 0.9, 1.8);
+  addMesh(root, new THREE.BoxGeometry(0.28, 0.55, 1.15), fabric, 3.5, 0.85, 2.3);
+  addMesh(root, new THREE.BoxGeometry(0.28, 0.55, 1.15), fabric, 6.5, 0.85, 2.3);
+  addMesh(root, new THREE.BoxGeometry(3.0, 0.16, 0.22), cushion, 5.0, 0.7, 2.15);
+  addMesh(root, new THREE.CylinderGeometry(0.7, 0.75, 0.12, 16), wood, 5.0, 0.42, 3.5);
+  // low coffee table in front of the screens, kept short so tiles stay visible
+  addMesh(root, new THREE.BoxGeometry(2.4, 0.1, 1.1), wood, 0, 0.45, 0.2);
+  addMesh(root, new THREE.CylinderGeometry(0.08, 0.08, 0.4, 8), wood, -0.9, 0.22, 0.2);
+  addMesh(root, new THREE.CylinderGeometry(0.08, 0.08, 0.4, 8), wood, 0.9, 0.22, 0.2);
+  // corner plants
+  plant(root, -W / 2 + 0.9, -D / 2 + 1.1, 1.15, 0x2f7a3e);
+  plant(root, W / 2 - 0.9, -D / 2 + 1.1, 1.05, 0x3a8a48);
+  plant(root, -W / 2 + 0.85, D / 2 - 1.2, 0.95, 0x2c6e38);
+  plant(root, W / 2 - 0.85, D / 2 - 1.2, 1.2, 0x367a42);
+  plant(root, -5.2, 3.4, 0.8, 0x3d8f4c);
+}
+
 function placeTilesOnWall(root, items, axis, W, D, accentHex, theme) {
-  const cols = 3, rows = 2;
-  const tw = 3.7, th = 2.3, gapX = 0.45, gapY = 0.4;
+  const n = items.length;
+  const cols = n <= 2 ? n : 2;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const availW = W - 2.0;
+  const availH = 4.55;
+  const gapX = 0.28, gapY = 0.22;
+  const tw = Math.min(7.6, (availW - gapX * (cols - 1)) / cols);
+  const th = Math.min(3.35, (availH - gapY * (rows - 1)) / rows);
+  const gridW = cols * tw + (cols - 1) * gapX;
+  const gridH = rows * th + (rows - 1) * gapY;
+  const x0 = -gridW / 2 + tw / 2;
+  const yTop = 1.35 + gridH - th / 2;
   items.forEach((report, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const ox = (col - 1) * (tw + gapX);
-    const oy = 3.35 - row * (th + gapY);
+    const ox = x0 + col * (tw + gapX);
+    const oy = yTop - row * (th + gapY);
     const screen = new THREE.Group();
-    const bezel = addMesh(screen, new THREE.BoxGeometry(tw + 0.16, th + 0.16, 0.12), mat(0x15191f, { roughness: 0.35, metalness: 0.2 }));
+    const glow = addMesh(screen, new THREE.PlaneGeometry(tw + 0.42, th + 0.42), new THREE.MeshBasicMaterial({
+      color: accentHex, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide,
+    }), 0, 0, 0.01);
+    glow.castShadow = false;
+    glow.receiveShadow = false;
+    const bezel = addMesh(screen, new THREE.BoxGeometry(tw + 0.14, th + 0.14, 0.12), mat(0x15191f, { roughness: 0.35, metalness: 0.2 }));
     const tex = drawTile(report, accentHex);
     const panel = addMesh(screen, new THREE.PlaneGeometry(tw, th), new THREE.MeshStandardMaterial({
-      map: tex, roughness: 0.35, metalness: 0.08, emissive: 0x111111, emissiveIntensity: 0.15,
+      map: tex, roughness: 0.32, metalness: 0.08, emissive: new THREE.Color(accentHex), emissiveIntensity: 0.22, emissiveMap: tex,
     }), 0, 0, 0.08);
     panel.castShadow = false;
     bezel.userData.report = report;
     panel.userData.report = report;
+    glow.userData.report = report;
     if (axis === 'back') {
       screen.position.set(ox, oy, -D / 2 + 0.2);
     } else if (axis === 'right') {
@@ -898,7 +942,7 @@ function placeTilesOnWall(root, items, axis, W, D, accentHex, theme) {
       screen.rotation.y = Math.PI / 2;
     }
     root.add(screen);
-    roomTiles.push({ group: screen, bezel, panel, report, baseScale: 1 });
+    roomTiles.push({ group: screen, bezel, panel, glow, report, baseScale: 1 });
   });
 }
 
@@ -1097,7 +1141,7 @@ function updateHover() {
   }
   raycaster.setFromCamera(mouse, camera);
   if (inRoom && !use2DRoom) {
-    const tileObjs = roomTiles.flatMap((t) => [t.panel, t.bezel]);
+    const tileObjs = roomTiles.flatMap((t) => [t.panel, t.bezel, t.glow].filter(Boolean));
     const hits = raycaster.intersectObjects(tileObjs.concat(roomDoor ? [roomDoor] : []), false);
     if (hits.length) {
       const obj = hits[0].object;
@@ -1109,7 +1153,7 @@ function updateHover() {
         els.canvas.style.cursor = 'pointer';
         return;
       }
-      const rec = roomTiles.find((t) => t.panel === obj || t.bezel === obj);
+      const rec = roomTiles.find((t) => t.panel === obj || t.bezel === obj || t.glow === obj);
       setTileHover(rec || null);
       setHovered(null);
       if (rec) {
@@ -1135,12 +1179,14 @@ function setTileHover(rec) {
   if (hoveredTile === rec) return;
   if (hoveredTile) {
     hoveredTile.group.scale.setScalar(1);
-    if (hoveredTile.panel.material.emissive) hoveredTile.panel.material.emissiveIntensity = 0.15;
+    if (hoveredTile.panel.material.emissiveIntensity != null) hoveredTile.panel.material.emissiveIntensity = 0.22;
+    if (hoveredTile.glow && hoveredTile.glow.material) hoveredTile.glow.material.opacity = 0.2;
   }
   hoveredTile = rec;
   if (rec) {
-    rec.group.scale.setScalar(1.04);
-    if (rec.panel.material.emissive) rec.panel.material.emissiveIntensity = 0.45;
+    rec.group.scale.setScalar(1.03);
+    if (rec.panel.material.emissiveIntensity != null) rec.panel.material.emissiveIntensity = 0.5;
+    if (rec.glow && rec.glow.material) rec.glow.material.opacity = 0.4;
   }
 }
 
