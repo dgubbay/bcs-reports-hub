@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BCS Campus Render</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Inter:wght@400;500&display=swap">
+<style>
+/* Layout: one framed render, title above, short notes below, max 1280px */
+:root {
+  --bg: #eef3f7; --fg: #142030; --muted: #546273; --frame: #ffffff; --line: #d3dde6; --accent: #4c7cff;
+  --display: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d141d; --fg: #e8eef5; --muted: #93a2b4; --frame: #172230; --line: #243243; --accent: #7aa0ff; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #0d141d; --fg: #e8eef5; --muted: #93a2b4; --frame: #172230; --line: #243243; --accent: #7aa0ff; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 32px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+.eyebrow { font-family: var(--display); font-weight: 500; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(28px, 4vw, 42px); line-height: 1.1; margin: 4px 0 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 65ch; margin: 8px 0 0; }
+figure { margin: 0; background: var(--frame); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+figure img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 6px; }
+figcaption { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 4px 2px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+figcaption a { color: var(--accent); }
+body{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">BCS Reports Hub</p>
+    <h1>The campus, rendered in Blender</h1>
+    <p class="lede">The seven-building Reports Hub campus rebuilt from its live 3D scene and rendered with Cycles: side-lit sun and soft shadows, reflective glass, bevelled edges, camera-facing rooftop signs, and distance haze.</p>
+  </header>
+  <figure>
+    <img src="campus-hero.png" alt="Aerial render of the BCS Reports Hub campus: a blue-glass Command Center tower in a central park, ringed by a road and six office buildings with signs for Finance HQ, Sales Center, Marketing Studio, Comms Building, Implementations Lab and Support Center, surrounded by low-poly trees.">
+    <figcaption><span>1920 × 1080 · Cycles, 64 samples, denoised</span><span>Nov 12, 2026</span><a href="https://dgubbay.github.io/bcs-reports-hub/" target="_blank" rel="noopener">Open the live campus</a></figcaption>
+  </figure>
+</div>
+</body>
+</html>
